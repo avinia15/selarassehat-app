@@ -734,12 +734,12 @@ def process_video(video_path, progress_bar=None):
     
     cap.release()
     
-    # Write frames to temporary AVI file first
-    temp_avi_path = tempfile.NamedTemporaryFile(delete=False, suffix='.avi').name
+    # Write frames to AVI file with MJPEG codec (browser-compatible)
+    output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.avi').name
     
-    # Use MJPEG codec for initial write
+    # Use MJPEG codec - works without FFmpeg
     fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    out = cv2.VideoWriter(temp_avi_path, fourcc, fps, (width, height))
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
     
     if not out.isOpened():
         raise Exception("Could not create video output")
@@ -750,39 +750,9 @@ def process_video(video_path, progress_bar=None):
     
     out.release()
     
-    # Convert to H.264 MP4 using FFmpeg (browser-compatible!)
-    output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-    
-    import subprocess
-    try:
-        # FFmpeg command to convert to browser-compatible H.264 MP4
-        cmd = [
-            'ffmpeg',
-            '-y',  # Overwrite output file
-            '-i', temp_avi_path,  # Input file
-            '-c:v', 'libx264',  # H.264 codec
-            '-preset', 'fast',  # Encoding speed
-            '-crf', '23',  # Quality (lower = better, 23 is good)
-            '-pix_fmt', 'yuv420p',  # Pixel format (required for browser compatibility)
-            '-movflags', '+faststart',  # Enable streaming
-            output_path
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, timeout=300)
-        
-        if result.returncode != 0:
-            # FFmpeg failed, use original AVI
-            output_path = temp_avi_path
-        else:
-            # Success! Clean up temporary AVI
-            try:
-                os.unlink(temp_avi_path)
-            except:
-                pass
-                
-    except Exception as e:
-        # If FFmpeg fails, fall back to AVI
-        output_path = temp_avi_path
+    # Verify video was created
+    if not os.path.exists(output_path):
+        raise Exception("Video file was not created")
     
     return output_path, pd.DataFrame(results_data)
 
